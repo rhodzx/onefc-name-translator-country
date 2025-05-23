@@ -1,45 +1,42 @@
-
 import streamlit as st
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-import time
+import pandas as pd
 
-st.set_page_config(page_title="ONE FC Name + Country", page_icon="🌍")
-st.title("🌍 ONE FC Athlete Name Translator + Country")
+st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
+st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-def fetch_name_country(url):
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--disable-gpu')
-    chrome_options.add_argument('--no-sandbox')
+# Predefined slug-to-country mapping for Cloud-safe extraction
+slug_to_country = {
+    "rodtang": "Thailand",
+    "stamp-fairtex": "Thailand",
+    "jonathan-haggerty": "United Kingdom",
+    "liam-harrison": "United Kingdom",
+    "superlek-kiatmoo9": "Thailand",
+    "jackie-buntan": "United States",
+    "alaverdi-ramazanov": "Russia"
+    # Extend this dictionary manually as needed
+}
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    driver.get(url)
-    time.sleep(2)
-
+def fetch_name(url):
     try:
-        name = driver.find_element(By.TAG_NAME, "h1").text
-    except:
-        name = "Name not found"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, 'html.parser')
 
-    try:
-        country = driver.find_element(By.XPATH, "//h6[text()='COUNTRY']/following-sibling::div").text
-    except:
-        country = "Country not found"
-
-    driver.quit()
-    return name, country
+        h1 = soup.find('h1', {'class': 'use-letter-spacing-hint my-4'}) or soup.find('h1')
+        return h1.get_text(strip=True) if h1 else "Name not found"
+    except Exception as e:
+        return f"Error: {e}"
 
 if "/athletes/" in url:
     parsed = urlparse(url)
-    slug = parsed.path.strip('/').split('/')[-1]
+    slug = parsed.path.strip('/').split('/')[-1].lower()
+
     langs = {
         "English": f"https://www.onefc.com/athletes/{slug}/",
         "Thai": f"https://www.onefc.com/th/athletes/{slug}/",
@@ -47,18 +44,13 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names and country..."):
-        results = {}
-        country = "Not found"
-        for lang, link in langs.items():
-            name, extracted_country = fetch_name_country(link)
-            results[lang] = name
-            if lang == "English":
-                country = extracted_country
+    with st.spinner("Fetching names..."):
+        results = {lang: fetch_name(link) for lang, link in langs.items()}
+        country = slug_to_country.get(slug, "Not found")
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
     st.dataframe(df)
 
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Download CSV", data=csv, file_name="onefc_names_country.csv", mime="text/csv")
+    st.download_button("📅 Download CSV", data=csv, file_name="onefc_names_country.csv", mime="text/csv")
