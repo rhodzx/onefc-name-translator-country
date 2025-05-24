@@ -26,7 +26,7 @@ def fetch_country_from_profile(url):
 
 def fetch_country_from_search(slug):
     try:
-        query = f"{slug.replace('-', ' ')} nationality site:en.wikipedia.org"
+        query = f"{slug.replace('-', ' ')} site:onefc.com"
         search_url = f"https://www.google.com/search?q={requests.utils.quote(query)}"
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(search_url, headers=headers, timeout=10)
