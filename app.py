@@ -16,12 +16,10 @@ def fetch_country_from_profile(url):
         r.raise_for_status()
         soup = BeautifulSoup(r.content, 'html.parser')
 
-        # Loop through label-value pairs and match the Country label
-        for row in soup.select('.athlete-info__item'):
-            label = row.select_one('.athlete-info__label')
-            value = row.select_one('.athlete-info__value')
-            if label and value and label.get_text(strip=True) == "Country":
-                return value.get_text(strip=True)
+        # Updated selector to match new structure
+        country_tag = soup.select_one('.athlete-info__list .athlete-info__value')
+        if country_tag:
+            return country_tag.get_text(strip=True)
 
         return "Not found"
     except Exception as e:
@@ -57,6 +55,3 @@ if "/athletes/" in url:
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
     st.dataframe(df)
-
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("🗕️ Download CSV", data=csv, file_name="onefc_names_country.csv", mime="text/csv")
