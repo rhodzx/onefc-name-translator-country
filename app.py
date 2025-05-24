@@ -30,14 +30,18 @@ def fetch_country_from_google(slug, api_key):
         # 1. Check if nationality exists in knowledge_graph
         if "knowledge_graph" in data:
             kg = data["knowledge_graph"]
-            nationality = kg.get("nationality") or kg.get("title")
-            if nationality:
-                return nationality.strip()
+            if "nationality" in kg:
+                return kg["nationality"].strip()
 
-        # 2. Fallback to organic snippets
+        # 2. Fallback to organic results snippet
         for result in data.get("organic_results", []):
             snippet = result.get("snippet", "")
             if "nationality" in snippet.lower():
+                # Try to extract country from the snippet
+                words = snippet.split()
+                for i, word in enumerate(words):
+                    if "nationality" in word.lower() and i > 0:
+                        return words[i-1].strip(",.():").capitalize()
                 return snippet.strip()
 
         return "Not found"
