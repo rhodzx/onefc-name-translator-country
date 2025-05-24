@@ -9,26 +9,42 @@ st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
+# ✅ NEW: Improved Bing nationality extractor
 def fetch_country_from_bing(slug):
     try:
-        query = f"{slug.replace('-', ' ')} nationality"
+        query = f"{slug.replace('-', ' ')} ONE Championship fighter nationality"
         search_url = f"https://www.bing.com/search?q={requests.utils.quote(query)}"
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(search_url, headers=headers, timeout=10)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, 'html.parser')
 
-        # Look for Bing answer box
-        snippet = soup.find('div', class_='b_focusTextLarge')
-        if snippet:
-            return snippet.get_text(strip=True)
+        # Try Bing's Knowledge Panel
+        kp = soup.find('div', {'class': 'b_vPanel'}) or soup.find('div', {'class': 'b_entityTP'})
+        if kp:
+            lines = kp.get_text(separator='|').split('|')
+            for line in lines:
+                if 'Nationality' in line:
+                    return line.replace('Nationality', '').strip()
 
-        # Fallback to first paragraph
-        fallback = soup.find('p')
-        return fallback.get_text(strip=True) if fallback else "Not found"
+        # Fallback: parse snippet in first result
+        result = soup.find('li', {'class': 'b_algo'})
+        if result:
+            snippet = result.find('p')
+            if snippet:
+                text = snippet.get_text(strip=True)
+                for word in text.split():
+                    if word.lower() in [
+                        "thai", "filipino", "filipina", "american", "brazilian",
+                        "russian", "japanese", "chinese", "indian", "singaporean",
+                        "indonesian", "malaysian", "australian", "british", "french"
+                    ]:
+                        return word.capitalize()
+        return "Not found"
     except Exception:
         return "Not found"
 
+# Fetch translated name per localized ONE FC page
 def fetch_name(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -40,6 +56,7 @@ def fetch_name(url):
     except Exception as e:
         return f"Error: {e}"
 
+# 🔁 Main execution
 if "/athletes/" in url:
     parsed = urlparse(url)
     slug = parsed.path.strip('/').split('/')[-1].lower()
@@ -51,7 +68,7 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names and country..."):
+    with st.spinner("Fetching names and nationality from Bing..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
         country = fetch_country_from_bing(slug)
 
