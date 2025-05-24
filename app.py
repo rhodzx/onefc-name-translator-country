@@ -1,19 +1,7 @@
-import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-import pandas as pd
-import re
-
-st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
-st.title("🏋️ ONE FC Athlete Name Translator + Country")
-
-url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
-
-# Updated function to fetch country from SerpAPI using better query
 def fetch_country_from_google(slug, api_key):
+    import re
     try:
-        query = f"{slug.replace('-', ' ')} ONE Championship fighter nationality"
+        query = f"{slug.replace('-', ' ')} ONE Championship nationality"
         params = {
             "q": query,
             "api_key": api_key,
@@ -23,50 +11,31 @@ def fetch_country_from_google(slug, api_key):
         response.raise_for_status()
         data = response.json()
 
-        # Priority: knowledge graph
-        if "knowledge_graph" in data and "nationality" in data["knowledge_graph"]:
-            return data["knowledge_graph"]["nationality"]
+        # 1. Try knowledge graph (most reliable)
+        kg = data.get("knowledge_graph", {})
+        if "nationality" in kg:
+            return kg["nationality"]
 
-        # Fallback: parse organic snippets
+        # 2. Try in title/snippet
         for result in data.get("organic_results", []):
             snippet = result.get("snippet", "").lower()
-            if "nationality" in snippet:
-                match = re.search(r'nationality[:\s]*([a-zA-Z\s]+)', snippet)
-                if match:
-                    return match.group(1).strip().title()
+            title = result.get("title", "").lower()
+
+            # Pattern: "is a Thai fighter" or "is a Thai..."
+            match = re.search(r"is (an?|the)? ([a-z]+) fighter", snippet)
+            if match:
+                return match.group(2).capitalize()
+
+            # Pattern: "Nationality: Thailand"
+            match = re.search(r"nationality[:\-–\s]+([a-zA-Z\s]+)", snippet)
+            if match:
+                return match.group(1).strip().title()
+
+            # Fallback: look for "from Thailand"
+            match = re.search(r"from ([a-zA-Z\s]+)", snippet)
+            if match:
+                return match.group(1).strip().title()
 
         return "Not found"
-    except Exception:
-        return "Not found"
-
-# Scrape names in multiple languages
-def fetch_name(url):
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get(url, headers=headers, timeout=10)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.content, 'html.parser')
-        h1 = soup.find('h1', {'class': 'use-letter-spacing-hint my-4'}) or soup.find('h1')
-        return h1.get_text(strip=True) if h1 else "Name not found"
     except Exception as e:
-        return f"Error: {e}"
-
-# Main logic
-if "/athletes/" in url:
-    parsed = urlparse(url)
-    slug = parsed.path.strip('/').split('/')[-1].lower()
-
-    langs = {
-        "English": f"https://www.onefc.com/athletes/{slug}/",
-        "Thai": f"https://www.onefc.com/th/athletes/{slug}/",
-        "Japanese": f"https://www.onefc.com/jp/athletes/{slug}/",
-        "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
-    }
-
-    with st.spinner("Fetching names and country..."):
-        results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = fetch_country_from_google(slug, st.secrets["SERPAPI_KEY"])
-
-    st.markdown(f"**🌍 Country:** `{country}`")
-    df = pd.DataFrame(results.items(), columns=["Language", "Name"])
-    st.dataframe(df)
+        return "Not found"
