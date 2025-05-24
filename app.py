@@ -3,13 +3,41 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
-from serpapi import GoogleSearch
 
+# ✅ Set up Streamlit
 st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
 st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
+# ✅ Paste URL
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
+# ✅ Fetch from SerpAPI (Google)
+def fetch_country_from_google_serpapi(slug):
+    try:
+        name_query = slug.replace('-', ' ')
+        params = {
+            "q": f"{name_query} nationality",
+            "api_key": "8333c89f61cbe6836cd0f1739fe6d95be169c1611c263218abf9e2eb0c4350ad",
+            "engine": "google",
+            "hl": "en"
+        }
+        resp = requests.get("https://serpapi.com/search", params=params, timeout=10)
+        data = resp.json()
+
+        # Try to extract from "answer box" or organic snippet
+        if "answer_box" in data and "answer" in data["answer_box"]:
+            return data["answer_box"]["answer"]
+        elif "answer_box" in data and "snippet" in data["answer_box"]:
+            return data["answer_box"]["snippet"]
+        elif "organic_results" in data and len(data["organic_results"]) > 0:
+            snippet = data["organic_results"][0].get("snippet", "")
+            return snippet.split('.')[0] if snippet else "Not found"
+        else:
+            return "Not found"
+    except Exception:
+        return "Not found"
+
+# ✅ Scrape ONEFC name
 def fetch_name(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -21,28 +49,7 @@ def fetch_name(url):
     except Exception as e:
         return f"Error: {e}"
 
-def fetch_country_from_serpapi(slug, serpapi_key):
-    query = f"{slug.replace('-', ' ')} nationality"
-    params = {
-        "q": query,
-        "api_key": serpapi_key,
-        "engine": "google",
-        "num": 1
-    }
-    try:
-        search = GoogleSearch(params)
-        result = search.get_dict()
-        if "organic_results" in result:
-            snippet = result["organic_results"][0].get("snippet", "")
-            for country in ["Thailand", "Philippines", "Japan", "Russia", "China", "Singapore", 
-                            "United Kingdom", "USA", "United States", "Brazil", "Italy", "France", "Germany", "Australia"]:
-                if country.lower() in snippet.lower():
-                    return country
-            return snippet  # fallback
-        return "Not found"
-    except Exception:
-        return "Not found"
-
+# ✅ Execute only if valid URL
 if "/athletes/" in url:
     parsed = urlparse(url)
     slug = parsed.path.strip('/').split('/')[-1].lower()
@@ -54,10 +61,11 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names and country..."):
+    with st.spinner("Fetching translations and nationality..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = fetch_country_from_serpapi(slug, st.secrets["SERPAPI_KEY"])
+        country = fetch_country_from_google_serpapi(slug)
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
     st.dataframe(df)
+
