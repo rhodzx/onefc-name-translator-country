@@ -3,12 +3,44 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
-import re
 
 st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
 st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
+
+def fetch_country_from_google(slug, api_key):
+    try:
+        query = f"{slug.replace('-', ' ')} nationality"
+        params = {
+            "q": query,
+            "api_key": api_key,
+            "engine": "google",
+            "hl": "en"
+        }
+        response = requests.get("https://serpapi.com/search", params=params)
+        response.raise_for_status()
+        results = response.json()
+
+        # 1. Look in answer_box if present
+        if 'answer_box' in results:
+            ab = results['answer_box']
+            for key in ['answer', 'snippet', 'highlighted_words']:
+                if key in ab:
+                    val = ab[key]
+                    if isinstance(val, list):
+                        return ', '.join(val)
+                    return val
+
+        # 2. Try the organic results for any line that mentions 'nationality'
+        for result in results.get('organic_results', []):
+            snippet = result.get('snippet', '').lower()
+            if 'nationality' in snippet:
+                return result.get('snippet')
+
+        return "Not found"
+    except Exception as e:
+        return "Not found"
 
 def fetch_name(url):
     try:
@@ -19,62 +51,8 @@ def fetch_name(url):
         h1 = soup.find('h1', {'class': 'use-letter-spacing-hint my-4'}) or soup.find('h1')
         return h1.get_text(strip=True) if h1 else "Name not found"
     except Exception as e:
-        return f"Error: {e}"
+        return "Error: " + str(e)
 
-def fetch_country_from_google(slug, api_key):
-    try:
-        query = f"{slug.replace('-', ' ')} ONE Championship nationality"
-        params = {
-            "q": query,
-            "api_key": api_key,
-            "engine": "google",
-        }
-        response = requests.get("https://serpapi.com/search", params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-
-        # Knowledge Graph
-        kg = data.get("knowledge_graph", {})
-        if "nationality" in kg:
-            return kg["nationality"]
-
-        def extract_country(text):
-            text = text.lower()
-            # "Nationality: France"
-            match = re.search(r"nationality[:\-–\s]+([a-zA-Z\s]+)", text)
-            if match:
-                return match.group(1).strip().title()
-            # "is a French fighter"
-            match = re.search(r"is an? ([a-zA-Z\s]+) fighter", text)
-            if match:
-                return match.group(1).strip().title()
-            # "from Thailand"
-            match = re.search(r"from ([a-zA-Z\s]+)", text)
-            if match:
-                return match.group(1).strip().title()
-            return None
-
-        # Organic results
-        for result in data.get("organic_results", []):
-            for field in ["snippet", "title"]:
-                val = result.get(field, "")
-                found = extract_country(val)
-                if found:
-                    return found
-
-        # Related questions
-        for q in data.get("related_questions", []):
-            for field in ["snippet", "title"]:
-                val = q.get(field, "")
-                found = extract_country(val)
-                if found:
-                    return found
-
-        return "Not found"
-    except Exception:
-        return "Not found"
-
-# Main logic
 if "/athletes/" in url:
     parsed = urlparse(url)
     slug = parsed.path.strip('/').split('/')[-1].lower()
