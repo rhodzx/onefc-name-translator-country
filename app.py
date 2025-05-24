@@ -1,3 +1,4 @@
+
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -9,42 +10,24 @@ st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-# ✅ NEW: Improved Bing nationality extractor
-def fetch_country_from_bing(slug):
+def fetch_country_from_bing_api(slug, api_key):
     try:
-        query = f"{slug.replace('-', ' ')} ONE Championship fighter nationality"
-        search_url = f"https://www.bing.com/search?q={requests.utils.quote(query)}"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get(search_url, headers=headers, timeout=10)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, 'html.parser')
+        query = f"{slug.replace('-', ' ')} ONE Championship nationality"
+        endpoint = "https://api.bing.microsoft.com/v7.0/entities"
+        headers = {"Ocp-Apim-Subscription-Key": api_key}
+        params = {"q": query, "mkt": "en-US"}
+        response = requests.get(endpoint, headers=headers, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
 
-        # Try Bing's Knowledge Panel
-        kp = soup.find('div', {'class': 'b_vPanel'}) or soup.find('div', {'class': 'b_entityTP'})
-        if kp:
-            lines = kp.get_text(separator='|').split('|')
-            for line in lines:
-                if 'Nationality' in line:
-                    return line.replace('Nationality', '').strip()
-
-        # Fallback: parse snippet in first result
-        result = soup.find('li', {'class': 'b_algo'})
-        if result:
-            snippet = result.find('p')
-            if snippet:
-                text = snippet.get_text(strip=True)
-                for word in text.split():
-                    if word.lower() in [
-                        "thai", "filipino", "filipina", "american", "brazilian",
-                        "russian", "japanese", "chinese", "indian", "singaporean",
-                        "indonesian", "malaysian", "australian", "british", "french"
-                    ]:
-                        return word.capitalize()
+        if "entities" in data and "value" in data["entities"]:
+            for entity in data["entities"]["value"]:
+                if "nationality" in entity.get("description", "").lower():
+                    return entity["name"]
         return "Not found"
     except Exception:
         return "Not found"
 
-# Fetch translated name per localized ONE FC page
 def fetch_name(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -56,7 +39,6 @@ def fetch_name(url):
     except Exception as e:
         return f"Error: {e}"
 
-# 🔁 Main execution
 if "/athletes/" in url:
     parsed = urlparse(url)
     slug = parsed.path.strip('/').split('/')[-1].lower()
@@ -68,9 +50,9 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names and nationality from Bing..."):
+    with st.spinner("Fetching names and country..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = fetch_country_from_bing(slug)
+        country = fetch_country_from_bing_api(slug, st.secrets["BING_API_KEY"])
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
