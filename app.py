@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
 
-st.set_page_config(page_title="ONE Athlete Name & Nationality", page_icon="🥊")
-st.title("🥊 ONE Athlete Name & Nationality")
+st.set_page_config(page_title="ONE Athlete Profile", page_icon="🥊")
+st.title("🥊 ONE Athlete Profile")
 
 url = st.text_input("Paste the ONE athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
@@ -68,6 +68,6 @@ if "/athletes/" in url:
         results = {lang: fetch_name(link) for lang, link in langs.items()}
         country = fetch_country_from_google(slug, st.secrets["SERPAPI_KEY"])
 
-    st.markdown(f"**🌍 Country:** `{country}`")
+    st.markdown(f"**🌍 Info:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
     st.dataframe(df)
