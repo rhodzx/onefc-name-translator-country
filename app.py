@@ -1,32 +1,14 @@
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
+from serpapi import GoogleSearch
 
 st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
 st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
-
-def fetch_country_from_bing_api(slug, api_key):
-    try:
-        query = f"{slug.replace('-', ' ')} ONE Championship nationality"
-        endpoint = "https://api.bing.microsoft.com/v7.0/entities"
-        headers = {"Ocp-Apim-Subscription-Key": api_key}
-        params = {"q": query, "mkt": "en-US"}
-        response = requests.get(endpoint, headers=headers, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-
-        if "entities" in data and "value" in data["entities"]:
-            for entity in data["entities"]["value"]:
-                if "nationality" in entity.get("description", "").lower():
-                    return entity["name"]
-        return "Not found"
-    except Exception:
-        return "Not found"
 
 def fetch_name(url):
     try:
@@ -38,6 +20,28 @@ def fetch_name(url):
         return h1.get_text(strip=True) if h1 else "Name not found"
     except Exception as e:
         return f"Error: {e}"
+
+def fetch_country_from_serpapi(slug, serpapi_key):
+    query = f"{slug.replace('-', ' ')} nationality"
+    params = {
+        "q": query,
+        "api_key": serpapi_key,
+        "engine": "google",
+        "num": 1
+    }
+    try:
+        search = GoogleSearch(params)
+        result = search.get_dict()
+        if "organic_results" in result:
+            snippet = result["organic_results"][0].get("snippet", "")
+            for country in ["Thailand", "Philippines", "Japan", "Russia", "China", "Singapore", 
+                            "United Kingdom", "USA", "United States", "Brazil", "Italy", "France", "Germany", "Australia"]:
+                if country.lower() in snippet.lower():
+                    return country
+            return snippet  # fallback
+        return "Not found"
+    except Exception:
+        return "Not found"
 
 if "/athletes/" in url:
     parsed = urlparse(url)
@@ -52,7 +56,7 @@ if "/athletes/" in url:
 
     with st.spinner("Fetching names and country..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = fetch_country_from_bing_api(slug, st.secrets["BING_API_KEY"])
+        country = fetch_country_from_serpapi(slug, st.secrets["SERPAPI_KEY"])
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
