@@ -9,23 +9,19 @@ st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-@st.cache_data(ttl=86400)
-def fetch_slug_country_mapping():
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    r = requests.get("https://www.onefc.com/athletes/", headers=headers, timeout=10)
-    soup = BeautifulSoup(r.content, 'html.parser')
-    cards = soup.select("a.c-card-athlete__link")
-    mapping = {}
-    for card in cards:
-        href = card.get("href")
-        country_tag = card.select_one(".c-card-athlete__country")
-        if href and country_tag:
-            slug = href.strip('/').split('/')[-1].lower()
-            country = country_tag.get_text(strip=True)
-            mapping[slug] = country
-    return mapping
-
-slug_to_country = fetch_slug_country_mapping()
+def fetch_country_from_profile(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, 'html.parser')
+        label = soup.find('div', string="Country")
+        if label:
+            value_div = label.find_next_sibling('div')
+            return value_div.get_text(strip=True) if value_div else "Not found"
+        return "Not found"
+    except Exception as e:
+        return f"Error: {e}"
 
 def fetch_name(url):
     try:
@@ -50,9 +46,9 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names..."):
+    with st.spinner("Fetching names and country..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = slug_to_country.get(slug, "Not found")
+        country = fetch_country_from_profile(langs["English"])
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
