@@ -4,10 +4,10 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
 
-st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
-st.title("🏋️ ONE FC Athlete Name Translator + Country")
+st.set_page_config(page_title="ONE Athlete Name & Nationality", page_icon="🏋️")
+st.title("🥊 ONE Athlete Name & Nationality")
 
-url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
+url = st.text_input("Paste the ONE athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
 def fetch_country_from_google(slug, api_key):
     try:
