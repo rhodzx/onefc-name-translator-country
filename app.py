@@ -4,22 +4,26 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
 
-st.set_page_config(page_title="ONE Name + Country", page_icon="🥋")
-st.title("🥋 ONE Athlete Name + Country")
+st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
+st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
-url = st.text_input("Paste the ONE athlete URL:", "https://www.onefc.com/athletes/rodtang/")
+url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-# Predefined slug-to-country mapping for Cloud-safe extraction
-slug_to_country = {
-    "rodtang": "Thailand",
-    "stamp-fairtex": "Thailand",
-    "jonathan-haggerty": "United Kingdom",
-    "liam-harrison": "United Kingdom",
-    "superlek-kiatmoo9": "Thailand",
-    "jackie-buntan": "United States",
-    "alaverdi-ramazanov": "Russia"
-    # Extend this dictionary manually as needed
-}
+@st.cache_data(show_spinner=False)
+def get_all_slug_country():
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    res = requests.get("https://www.onefc.com/athletes/", headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    slug_country = {}
+    cards = soup.select("a.c-card-athlete__link")
+    for card in cards:
+        href = card.get("href")
+        country_tag = card.select_one(".c-card-athlete__country")
+        if href and country_tag:
+            slug = href.strip("/").split("/")[-1]
+            slug_country[slug] = country_tag.text.strip()
+    return slug_country
 
 def fetch_name(url):
     try:
@@ -44,9 +48,10 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names..."):
+    with st.spinner("Fetching names and country..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = slug_to_country.get(slug, "Not found")
+        slug_country_map = get_all_slug_country()
+        country = slug_country_map.get(slug, "Not found")
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
