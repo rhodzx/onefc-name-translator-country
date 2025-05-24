@@ -9,21 +9,23 @@ st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-@st.cache_data(show_spinner=False)
-def get_all_slug_country():
+@st.cache_data(ttl=86400)
+def fetch_slug_country_mapping():
     headers = {'User-Agent': 'Mozilla/5.0'}
-    res = requests.get("https://www.onefc.com/athletes/", headers=headers)
-    soup = BeautifulSoup(res.text, "html.parser")
-
-    slug_country = {}
+    r = requests.get("https://www.onefc.com/athletes/", headers=headers, timeout=10)
+    soup = BeautifulSoup(r.content, 'html.parser')
     cards = soup.select("a.c-card-athlete__link")
+    mapping = {}
     for card in cards:
         href = card.get("href")
         country_tag = card.select_one(".c-card-athlete__country")
         if href and country_tag:
-            slug = href.strip("/").split("/")[-1]
-            slug_country[slug] = country_tag.text.strip()
-    return slug_country
+            slug = href.strip('/').split('/')[-1].lower()
+            country = country_tag.get_text(strip=True)
+            mapping[slug] = country
+    return mapping
+
+slug_to_country = fetch_slug_country_mapping()
 
 def fetch_name(url):
     try:
@@ -48,14 +50,13 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names and country..."):
+    with st.spinner("Fetching names..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        slug_country_map = get_all_slug_country()
-        country = slug_country_map.get(slug, "Not found")
+        country = slug_to_country.get(slug, "Not found")
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
     st.dataframe(df)
 
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("📅 Download CSV", data=csv, file_name="onefc_names_country.csv", mime="text/csv")
+    st.download_button("🗕️ Download CSV", data=csv, file_name="onefc_names_country.csv", mime="text/csv")
