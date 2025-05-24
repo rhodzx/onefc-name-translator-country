@@ -16,37 +16,31 @@ url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athl
 # ------------------------------
 def fetch_country_from_google(slug, api_key):
     try:
-        query = f"{slug.replace('-', ' ')} nationality"
+        query = f"{slug.replace('-', ' ')} ONE Championship fighter nationality"
         params = {
             "q": query,
             "api_key": api_key,
             "engine": "google",
-            "hl": "en"
         }
         response = requests.get("https://serpapi.com/search", params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
-        # 1. Check if nationality exists in knowledge_graph
-        if "knowledge_graph" in data:
-            kg = data["knowledge_graph"]
-            if "nationality" in kg:
-                return kg["nationality"].strip()
-
-        # 2. Fallback to organic results snippet
+        if "knowledge_graph" in data and "nationality" in data["knowledge_graph"]:
+            return data["knowledge_graph"]["nationality"]
+        
+        # Fallback: Try parsing organic snippet text
         for result in data.get("organic_results", []):
-            snippet = result.get("snippet", "")
-            if "nationality" in snippet.lower():
-                # Try to extract country from the snippet
-                words = snippet.split()
-                for i, word in enumerate(words):
-                    if "nationality" in word.lower() and i > 0:
-                        return words[i-1].strip(",.():").capitalize()
-                return snippet.strip()
-
+            snippet = result.get("snippet", "").lower()
+            if "nationality" in snippet:
+                match = re.search(r'nationality[:\s]*([a-zA-Z\s]+)', snippet)
+                if match:
+                    return match.group(1).strip().title()
+        
         return "Not found"
     except Exception:
         return "Not found"
+
 
 # ------------------------------
 # 2. Get translated names
