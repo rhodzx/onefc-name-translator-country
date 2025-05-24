@@ -15,10 +15,14 @@ def fetch_country_from_profile(url):
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
         soup = BeautifulSoup(r.content, 'html.parser')
-        label = soup.find('div', string="Country")
-        if label:
-            value_div = label.find_next_sibling('div')
-            return value_div.get_text(strip=True) if value_div else "Not found"
+
+        # Loop through label-value pairs and match the Country label
+        for row in soup.select('.athlete-info__item'):
+            label = row.select_one('.athlete-info__label')
+            value = row.select_one('.athlete-info__value')
+            if label and value and label.get_text(strip=True) == "Country":
+                return value.get_text(strip=True)
+
         return "Not found"
     except Exception as e:
         return f"Error: {e}"
