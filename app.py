@@ -9,38 +9,42 @@ st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-# Use SerpAPI to get nationality based on slug
-def fetch_country_from_google_serpapi(slug):
+def fetch_country_from_google(slug, api_key):
     try:
-        name_query = slug  # use hyphenated slug directly
+        query = f"{slug.replace('-', ' ')} nationality"
         params = {
-            "q": f"{name_query} nationality",
-            "api_key": "8333c89f61cbe6836cd0f1739fe6d95be169c1611c263218abf9e2eb0c4350ad",
-            "engine": "google",
-            "hl": "en"
+            "q": query,
+            "api_key": api_key,
+            "engine": "google"
         }
-        resp = requests.get("https://serpapi.com/search", params=params, timeout=10)
-        data = resp.json()
+        response = requests.get("https://serpapi.com/search", params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
 
-        if "answer_box" in data:
-            abox = data["answer_box"]
-            if "answer" in abox:
-                return abox["answer"]
-            elif "snippet" in abox:
-                return abox["snippet"]
+        # Try direct answer
+        answer_box = data.get("answer_box", {})
+        if "answer" in answer_box:
+            return answer_box["answer"]
 
+        # Try nationality list like ["Italian", "Moroccan"]
+        if "list" in answer_box:
+            return ", ".join(answer_box["list"])
+
+        # Fallback to scanning snippet for country names
         if "organic_results" in data:
-            for result in data["organic_results"]:
-                snippet = result.get("snippet", "")
-                for country in ["china", "thailand", "philippines", "japan", "united states", "russia", "brazil", "india", "france", "uk", "england"]:
-                    if country in snippet.lower():
-                        return country.title()
+            snippet = data["organic_results"][0].get("snippet", "").lower()
+            known_countries = [
+                "Thailand", "United States", "Brazil", "Japan", "China", "Russia",
+                "Italy", "Morocco", "Philippines", "France", "India", "Singapore"
+            ]
+            for country in known_countries:
+                if country.lower() in snippet:
+                    return country
 
         return "Not found"
-    except Exception:
+    except Exception as e:
         return "Not found"
 
-# Scrape name from each language version of the ONE FC page
 def fetch_name(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -52,7 +56,6 @@ def fetch_name(url):
     except Exception as e:
         return f"Error: {e}"
 
-# Main logic
 if "/athletes/" in url:
     parsed = urlparse(url)
     slug = parsed.path.strip('/').split('/')[-1].lower()
@@ -66,7 +69,7 @@ if "/athletes/" in url:
 
     with st.spinner("Fetching names and country..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = fetch_country_from_google_serpapi(slug)
+        country = fetch_country_from_google(slug, st.secrets["SERPAPI_KEY"])
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
