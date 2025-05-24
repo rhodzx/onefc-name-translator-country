@@ -16,14 +16,25 @@ def fetch_country_from_profile(url):
         r.raise_for_status()
         soup = BeautifulSoup(r.content, 'html.parser')
 
-        # Updated selector to match new structure
         country_tag = soup.select_one('.athlete-info__list .athlete-info__value')
         if country_tag:
             return country_tag.get_text(strip=True)
 
         return "Not found"
-    except Exception as e:
-        return f"Error: {e}"
+    except Exception:
+        return "Not found"
+
+def fetch_country_from_search(slug):
+    try:
+        query = f"{slug.replace('-', ' ')} nationality site:en.wikipedia.org"
+        search_url = f"https://www.google.com/search?q={requests.utils.quote(query)}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(search_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        snippet = soup.select_one('div.BNeawe.tAd8D.AP7Wnd')
+        return snippet.get_text(strip=True) if snippet else "Not found"
+    except Exception:
+        return "Not found"
 
 def fetch_name(url):
     try:
@@ -51,6 +62,8 @@ if "/athletes/" in url:
     with st.spinner("Fetching names and country..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
         country = fetch_country_from_profile(langs["English"])
+        if country == "Not found":
+            country = fetch_country_from_search(slug)
 
     st.markdown(f"**🌍 Country:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
