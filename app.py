@@ -4,47 +4,49 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
 
+# Streamlit page config
 st.set_page_config(page_title="ONE FC Name Translator + Country", page_icon="🏋️")
 st.title("🏋️ ONE FC Athlete Name Translator + Country")
 
+# Input URL
 url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
+# ------------------------------
+# 1. Fetch country via SerpAPI
+# ------------------------------
 def fetch_country_from_google(slug, api_key):
     try:
         query = f"{slug.replace('-', ' ')} nationality"
         params = {
             "q": query,
             "api_key": api_key,
-            "engine": "google"
+            "engine": "google",
+            "hl": "en"
         }
         response = requests.get("https://serpapi.com/search", params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
-        # Try direct answer
-        answer_box = data.get("answer_box", {})
-        if "answer" in answer_box:
-            return answer_box["answer"]
+        # 1. Check if nationality exists in knowledge_graph
+        if "knowledge_graph" in data:
+            kg = data["knowledge_graph"]
+            nationality = kg.get("nationality") or kg.get("title")
+            if nationality:
+                return nationality.strip()
 
-        # Try nationality list like ["Italian", "Moroccan"]
-        if "list" in answer_box:
-            return ", ".join(answer_box["list"])
-
-        # Fallback to scanning snippet for country names
-        if "organic_results" in data:
-            snippet = data["organic_results"][0].get("snippet", "").lower()
-            known_countries = [
-                "Thailand", "United States", "Brazil", "Japan", "China", "Russia",
-                "Italy", "Morocco", "Philippines", "France", "India", "Singapore"
-            ]
-            for country in known_countries:
-                if country.lower() in snippet:
-                    return country
+        # 2. Fallback to organic snippets
+        for result in data.get("organic_results", []):
+            snippet = result.get("snippet", "")
+            if "nationality" in snippet.lower():
+                return snippet.strip()
 
         return "Not found"
-    except Exception as e:
+    except Exception:
         return "Not found"
 
+# ------------------------------
+# 2. Get translated names
+# ------------------------------
 def fetch_name(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -56,6 +58,9 @@ def fetch_name(url):
     except Exception as e:
         return f"Error: {e}"
 
+# ------------------------------
+# 3. Main logic
+# ------------------------------
 if "/athletes/" in url:
     parsed = urlparse(url)
     slug = parsed.path.strip('/').split('/')[-1].lower()
@@ -67,7 +72,7 @@ if "/athletes/" in url:
         "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
     }
 
-    with st.spinner("Fetching names and country..."):
+    with st.spinner("Fetching translations and country info..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
         country = fetch_country_from_google(slug, st.secrets["SERPAPI_KEY"])
 
