@@ -18,12 +18,12 @@ def fetch_country_from_bing(slug):
         r.raise_for_status()
         soup = BeautifulSoup(r.text, 'html.parser')
 
-        # Try the Bing answer box
+        # Look for Bing answer box
         snippet = soup.find('div', class_='b_focusTextLarge')
         if snippet:
             return snippet.get_text(strip=True)
 
-        # Fallback to first snippet paragraph
+        # Fallback to first paragraph
         fallback = soup.find('p')
         return fallback.get_text(strip=True) if fallback else "Not found"
     except Exception:
