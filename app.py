@@ -11,18 +11,21 @@ url = st.text_input("Paste the ONE FC athlete URL:", "https://www.onefc.com/athl
 
 def fetch_country_from_bing(slug):
     try:
-        query = f"{slug.replace('-', ' ')} ONE Championship nationality"
+        query = f"{slug.replace('-', ' ')} nationality"
         search_url = f"https://www.bing.com/search?q={requests.utils.quote(query)}"
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(search_url, headers=headers, timeout=10)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, 'html.parser')
-        result = soup.find('li', {'class': 'b_algo'})
-        if result:
-            snippet = result.find('p')
-            if snippet:
-                return snippet.get_text(strip=True)
-        return "Not found"
+
+        # Try the Bing answer box
+        snippet = soup.find('div', class_='b_focusTextLarge')
+        if snippet:
+            return snippet.get_text(strip=True)
+
+        # Fallback to first snippet paragraph
+        fallback = soup.find('p')
+        return fallback.get_text(strip=True) if fallback else "Not found"
     except Exception:
         return "Not found"
 
