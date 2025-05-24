@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import pandas as pd
 
-st.set_page_config(page_title="ONE Athlete Name & Nationality", page_icon="🏋️")
+st.set_page_config(page_title="ONE Athlete Name & Nationality", page_icon="🥊")
 st.title("🥊 ONE Athlete Name & Nationality")
 
 url = st.text_input("Paste the ONE athlete URL:", "https://www.onefc.com/athletes/rodtang/")
