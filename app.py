@@ -1,43 +1,74 @@
+
 import streamlit as st
 import requests
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse
+import pandas as pd
 
 st.set_page_config(page_title="ONE Athlete Profile", page_icon="🥊")
 st.title("🥊 ONE Athlete Profile")
 
 url = st.text_input("Paste the ONE athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-# Mock function to simulate user login/authorization
-def login_and_get_token():
-    # Simulate login POST request, replace with actual login endpoint and data if needed
-    login_url = "https://atlas.tech.onefc.com/api/login"  # Example URL
-    login_data = {"username": "your_username", "password": "your_password"}
-    response = requests.post(login_url, data=login_data)
-    response.raise_for_status()
-    return response.json().get('token')  # Assuming the token is in the response
-
-# Fetch athlete information using the available token
-def fetch_athlete_info(slug, token):
+def fetch_country_from_google(slug, api_key):
     try:
-        api_endpoint = f"https://atlas.tech.onefc.com/api/athletes/{slug}"
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.get(api_endpoint, headers=headers)
+        query = f"{slug.replace('-', ' ')} nationality"
+        params = {
+            "q": query,
+            "api_key": api_key,
+            "engine": "google",
+            "hl": "en"
+        }
+        response = requests.get("https://serpapi.com/search", params=params)
         response.raise_for_status()
-        athlete_info = response.json()
-        return athlete_info.get('country', 'Country not found')
+        results = response.json()
+
+        # 1. Look in answer_box if present
+        if 'answer_box' in results:
+            ab = results['answer_box']
+            for key in ['answer', 'snippet', 'highlighted_words']:
+                if key in ab:
+                    val = ab[key]
+                    if isinstance(val, list):
+                        return ', '.join(val)
+                    return val
+
+        # 2. Try the organic results for any line that mentions 'nationality'
+        for result in results.get('organic_results', []):
+            snippet = result.get('snippet', '').lower()
+            if 'nationality' in snippet:
+                return result.get('snippet')
+
+        return "Not found"
     except Exception as e:
         return "Not found"
+
+def fetch_name(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, 'html.parser')
+        h1 = soup.find('h1', {'class': 'use-letter-spacing-hint my-4'}) or soup.find('h1')
+        return h1.get_text(strip=True) if h1 else "Name not found"
+    except Exception as e:
+        return "Error: " + str(e)
 
 if "/athletes/" in url:
     parsed = urlparse(url)
     slug = parsed.path.strip('/').split('/')[-1].lower()
-    
-    # Attempt to obtain a login token
-    token = login_and_get_token()
 
-    if token:
-        with st.spinner("Fetching country using API..."):
-            country = fetch_athlete_info(slug, token)
-        st.markdown(f"**🌍 Country:** `{country}`")
-    else:
-        st.error("Failed to authenticate or fetch data.")
+    langs = {
+        "English": f"https://www.onefc.com/athletes/{slug}/",
+        "Thai": f"https://www.onefc.com/th/athletes/{slug}/",
+        "Japanese": f"https://www.onefc.com/jp/athletes/{slug}/",
+        "Chinese": f"https://www.onefc.com/cn/athletes/{slug}/"
+    }
+
+    with st.spinner("Fetching names and country..."):
+        results = {lang: fetch_name(link) for lang, link in langs.items()}
+        country = fetch_country_from_google(slug, st.secrets["SERPAPI_KEY"])
+
+    st.markdown(f"**🌍 Info:** `{country}`")
+    df = pd.DataFrame(results.items(), columns=["Language", "Name"])
+    st.dataframe(df)
