@@ -27,16 +27,21 @@ def fetch_country_from_page(url):
         r.raise_for_status()
         soup = BeautifulSoup(r.content, 'html.parser')
 
-        attrs = soup.find_all('div', class_='attr')
-        for attr in attrs:
+        # Look for the parent div with class 'attributes'
+        attributes_block = soup.find('div', class_='my-4 attributes')
+        if not attributes_block:
+            return "Attributes section not found"
+
+        # Loop through all divs with class 'attr' inside the attributes block
+        for attr in attributes_block.find_all('div', class_='attr'):
             title = attr.find('h5', class_='title')
-            if title and title.text.strip() == "Country":
-                country_div = attr.find('div', class_='value')
-                if country_div and country_div.a:
-                    return country_div.a.text.strip()
+            if title and title.get_text(strip=True) == "Country":
+                value = attr.find('div', class_='value')
+                if value and value.a:
+                    return value.a.get_text(strip=True)
         return "Country not found"
     except Exception as e:
-        return "Error: " + str(e)
+        return f"Error: {e}"
 
 if "/athletes/" in url:
     parsed = urlparse(url)
