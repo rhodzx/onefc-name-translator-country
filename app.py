@@ -27,18 +27,15 @@ def fetch_country_from_page(url):
         r.raise_for_status()
         soup = BeautifulSoup(r.content, 'html.parser')
 
-        # Look for the parent div with class 'attributes'
-        attributes_block = soup.find('div', class_='my-4 attributes')
-        if not attributes_block:
-            return "Attributes section not found"
-
-        # Loop through all divs with class 'attr' inside the attributes block
-        for attr in attributes_block.find_all('div', class_='attr'):
-            title = attr.find('h5', class_='title')
-            if title and title.get_text(strip=True) == "Country":
-                value = attr.find('div', class_='value')
+        # Search for ALL "attr" blocks
+        attr_blocks = soup.select("div.attr")
+        for block in attr_blocks:
+            title = block.find("h5", class_="title")
+            if title and "country" in title.get_text(strip=True).lower():
+                value = block.find("div", class_="value")
                 if value and value.a:
                     return value.a.get_text(strip=True)
+
         return "Country not found"
     except Exception as e:
         return f"Error: {e}"
