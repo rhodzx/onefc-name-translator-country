@@ -22,25 +22,26 @@ def fetch_name(url):
     except Exception as e:
         return "Error: " + str(e)
 
-def fetch_country_from_page(url):
+def fetch_countries_from_page(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
         soup = BeautifulSoup(r.content, 'html.parser')
 
-        # Search for ALL "attr" blocks
+        countries = []
         attr_blocks = soup.select("div.attr")
         for block in attr_blocks:
             title = block.find("h5", class_="title")
             if title and "country" in title.get_text(strip=True).lower():
                 value = block.find("div", class_="value")
-                if value and value.a:
-                    return value.a.get_text(strip=True)
-
-        return "Country not found"
+                if value:
+                    countries = [a.get_text(strip=True) for a in value.find_all("a")]
+                break
+        return countries or ["Country not found"]
     except Exception as e:
-        return f"Error: {e}"
+        return [f"Error: {e}"]
+
 
 if "/athletes/" in url:
     parsed = urlparse(url)
