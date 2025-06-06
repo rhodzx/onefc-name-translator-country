@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -10,39 +9,6 @@ st.title("🥊 ONE Athlete Profile")
 
 url = st.text_input("Paste the ONE athlete URL:", "https://www.onefc.com/athletes/rodtang/")
 
-def fetch_country_from_google(slug, api_key):
-    try:
-        query = f"{slug.replace('-', ' ')} nationality"
-        params = {
-            "q": query,
-            "api_key": api_key,
-            "engine": "google",
-            "hl": "en"
-        }
-        response = requests.get("https://serpapi.com/search", params=params)
-        response.raise_for_status()
-        results = response.json()
-
-        # 1. Look in answer_box if present
-        if 'answer_box' in results:
-            ab = results['answer_box']
-            for key in ['answer', 'snippet', 'highlighted_words']:
-                if key in ab:
-                    val = ab[key]
-                    if isinstance(val, list):
-                        return ', '.join(val)
-                    return val
-
-        # 2. Try the organic results for any line that mentions 'nationality'
-        for result in results.get('organic_results', []):
-            snippet = result.get('snippet', '').lower()
-            if 'nationality' in snippet:
-                return result.get('snippet')
-
-        return "Not found"
-    except Exception as e:
-        return "Not found"
-
 def fetch_name(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -51,6 +17,24 @@ def fetch_name(url):
         soup = BeautifulSoup(r.content, 'html.parser')
         h1 = soup.find('h1', {'class': 'use-letter-spacing-hint my-4'}) or soup.find('h1')
         return h1.get_text(strip=True) if h1 else "Name not found"
+    except Exception as e:
+        return "Error: " + str(e)
+
+def fetch_country_from_page(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, 'html.parser')
+
+        attrs = soup.find_all('div', class_='attr')
+        for attr in attrs:
+            title = attr.find('h5', class_='title')
+            if title and title.text.strip() == "Country":
+                country_div = attr.find('div', class_='value')
+                if country_div and country_div.a:
+                    return country_div.a.text.strip()
+        return "Country not found"
     except Exception as e:
         return "Error: " + str(e)
 
@@ -67,8 +51,8 @@ if "/athletes/" in url:
 
     with st.spinner("Fetching names and country..."):
         results = {lang: fetch_name(link) for lang, link in langs.items()}
-        country = fetch_country_from_google(slug, st.secrets["SERPAPI_KEY"])
+        country = fetch_country_from_page(url)
 
-    st.markdown(f"**🌍 Info:** `{country}`")
+    st.markdown(f"**🌍 Nationality:** `{country}`")
     df = pd.DataFrame(results.items(), columns=["Language", "Name"])
     st.dataframe(df)
